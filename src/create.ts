@@ -61,6 +61,10 @@ function templateFiles(appName: string, version: string): Record<string, string>
           '--soft': '#f6f8fb',
           '--bg': '#ffffff',
         },
+        data: {
+          allowHosts: ['jsonplaceholder.typicode.com'],
+          timeoutMs: 5000,
+        },
       },
       null,
       2,
@@ -68,6 +72,7 @@ function templateFiles(appName: string, version: string): Record<string, string>
 
     'app/index.aql': INDEX_AQL,
     'app/about.aql': ABOUT_AQL,
+    'app/data.aql': DATA_AQL,
     'public/robots.txt': 'User-agent: *\nAllow: /\n',
     '.gitignore': 'node_modules\ndist\n*.log\n.DS_Store\n',
     'README.md': readmeFor(appName),
@@ -124,6 +129,24 @@ const ABOUT_AQL = `page "About" desc="How atomkit-app works" {
 }
 `;
 
+const DATA_AQL = `page "Data" desc="Server-resolved data binding via atomkit-http" {
+  box as=main pad-y=80 max-w=720 m-x=auto pad-x=24 {
+    box dir=column gap=16 {
+      chip "SERVER-RESOLVED" bg="var(--brand,#005DAB)" color=#ffffff size=11px weight=800 case=uppercase ls=0.1em
+      heading "Live data, baked at build time" level=1 size=2rem color="var(--ink,#0b1220)"
+      text "The values below are fetched at render/build time from a public API through atomkit-http's SSRF-guarded connector (allowHosts in atomkit.config.json), then baked into static HTML. Offline or off-allowlist, the authored fallback shows instead." color="#4a5566" size=17px
+      box dir=column gap=6 pad=20px radius=14px bg=#ffffff border="1px solid #edf0f4" {
+        text "Loading name…" api="https://jsonplaceholder.typicode.com/users/1" path=name bind=text size=20px weight=700 color="var(--ink,#0b1220)"
+        text "Loading company…" api="https://jsonplaceholder.typicode.com/users/1" path=company.name bind=text color="#4a5566"
+        text "hidden@until-authorized" api="https://jsonplaceholder.typicode.com/users/1" path=email bind=text pii color="#8a94a3"
+      }
+      text "The last line is flagged pii: it renders masked (•••••) and is NEVER fetched for a public viewer — governance runs before data resolution." color="#8a94a3" size=13px
+      button "Back home" href=/ bg="var(--brand,#005DAB)" color=#ffffff pad-x=20px pad-y=10px radius=999px weight=700
+    }
+  }
+}
+`;
+
 function readmeFor(appName: string): string {
   return `# ${appName}
 
@@ -143,10 +166,26 @@ npm run start    # serve the build
 app/               file-based routing — each .aql is a route
   index.aql        →  /
   about.aql        →  /about
+  data.aql         →  /data   (server-resolved data binding demo)
 public/            static assets served verbatim
-atomkit.config.json  title, port, design tokens, governance context
+atomkit.config.json  title, port, design tokens, governance, data allowHosts
 \`\`\`
 
 Edit \`app/*.aql\` and the browser hot-reloads. Add a new file to add a route.
+
+## Data binding
+
+Bind a node to an API right in AQL:
+
+\`\`\`
+text "Loading…" api="https://api.example.com/thing" path=field bind=text
+\`\`\`
+
+The value is fetched **on the server at build/dev time** through
+\`@noidmejs/atomkit-http\` and **baked into the static HTML** — the deployed page ships
+no client JS. The URL's host must be in \`data.allowHosts\` in \`atomkit.config.json\`
+(SSRF guard); otherwise, and when offline or on error, the authored fallback text
+renders instead. A node flagged \`pii\` is masked and never fetched. Data is a
+build-time snapshot — rebuild to refresh.
 `;
 }

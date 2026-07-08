@@ -32,9 +32,10 @@ my-app/
   app/                 file-based routing — each .aql is a route
     index.aql          →  /
     about.aql          →  /about
+    data.aql           →  /data   (server-resolved data-binding demo)
     blog/post.aql      →  /blog/post
   public/              static assets served verbatim
-  atomkit.config.json  title, port, design tokens, governance context
+  atomkit.config.json  title, port, design tokens, governance, data allowHosts
 ```
 
 Files/dirs starting with `_` or `.` in `app/` are skipped (use them for partials).
@@ -55,18 +56,66 @@ Files/dirs starting with `_` or `.` in `app/` are skipped (use them for partials
 viewer's** governance facts — the defaults are least-privileged, so a served page
 can never leak `protected` / `pii` content. Editing the config hot-reloads in `dev`.
 
+## Data binding — connect a backend by config
+
+Bind any node to an API directly in AQL:
+
+```
+text "Loading…" api="https://api.example.com/thing" path=data.field bind=text
+```
+
+The value is fetched **on the server at build/dev time** through
+[`@noidmejs/atomkit-http`](https://www.npmjs.com/package/@noidmejs/atomkit-http)
+and **baked into the static HTML** — the deployed page ships no client JS. Add
+`data` to `atomkit.config.json`:
+
+```json
+{
+  "data": {
+    "allowHosts": ["api.example.com"],
+    "secrets": { "API_TOKEN": "…" },
+    "timeoutMs": 5000
+  }
+}
+```
+
+- **`allowHosts`** is an SSRF allow-list (exact host or `.suffix`). A binding whose
+  host isn't listed — or a private/reserved IP (`localhost`, `169.254.169.254`, LAN)
+  — is **never fetched**; the authored fallback text renders instead. Empty list ⇒
+  nothing is fetched (fail-closed).
+- **`secrets`** is a curated server-only map referenced as `{{secret.NAME}}` in a
+  URL/header — never the whole environment. Only the field selected by `path` is
+  baked into HTML, never the secret.
+- Fetch failure, an empty result, or a non-scalar value all fall back to the
+  authored text (with a build/dev note). A node flagged **`pii`** is masked and
+  never fetched (governance runs before resolution).
+
+Data is a **build-time snapshot** — rebuild to refresh. The scaffolded `/data` page
+is a live demo (binds to `jsonplaceholder.typicode.com`).
+
+> **Note — two data behaviours from one build.** The deployable static HTML bakes
+> the value at build time under the allow-list. The ejected `components/*.tsx`
+> keeps atomkit's *client-side* fetch (governed only by the browser CSP), so a
+> hydrated component fetches live in the browser. Keep secret-bearing sources out
+> of the ejected path.
+
 ## Governance & safety
 
 Pages render through atomkit's runtime, so every served page is governed twice:
 `stripDocument` removes/masks `protected` / `roles` / `pii` / `consent` nodes at
-egress, and the renderer re-gates per node. Style values and URLs are whitelisted;
-design tokens are sanitised before injection; the static file server is
-path-traversal guarded. See [SECURITY.md](./SECURITY.md).
+egress, and the renderer re-gates per node. Governance runs **before** data
+resolution, so a governed node is never fetched. Data binding delegates SSRF
+control to atomkit-http's proxy (allow-list on the initial host + every redirect
+hop) and additionally denies private/reserved IP hosts. Style values and URLs are
+whitelisted; design tokens are sanitised before injection; the static file server
+is path-traversal guarded. See [SECURITY.md](./SECURITY.md).
 
 ## Programmatic API
 
 Everything the CLI does is exported: `create`, `dev`, `build`, `start`,
-`collectRoutes`, `matchRoute`, `renderAqlSource`, `pageShell`, `loadConfig`.
+`collectRoutes`, `matchRoute`, `renderAqlSource`, `resolveData`, `pageShell`,
+`loadConfig`. `renderAqlSource` and `build` are **async** (they resolve data
+bindings) and both accept an injectable `fetchImpl` for tests.
 
 ## Notes
 

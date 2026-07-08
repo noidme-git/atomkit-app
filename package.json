@@ -1,16 +1,37 @@
 {
   "name": "@noidmejs/atomkit-app",
-  "version": "0.1.0",
-  "description": "The AQL app framework + generator — scaffold, dev-serve (localhost:3300, live reload), and build a UI app written in AQL. Like create-next-app for atomkit: file-based routing over .aql pages, SSR to static HTML, and compile-to-React (own your code).",
-  "keywords": ["atomkit", "aql", "framework", "generator", "scaffold", "create-app", "dev-server", "ssr", "file-based-routing", "no-code", "ui-language"],
+  "version": "0.2.0",
+  "description": "The AQL app framework + generator — scaffold, dev-serve (localhost:3300, live reload), and build a UI app written in AQL. Like create-next-app for atomkit: file-based routing over .aql pages, SSR to static HTML, server-side data binding (SSRF-guarded), and compile-to-React (own your code).",
+  "keywords": [
+    "atomkit",
+    "aql",
+    "framework",
+    "generator",
+    "scaffold",
+    "create-app",
+    "dev-server",
+    "ssr",
+    "file-based-routing",
+    "no-code",
+    "ui-language"
+  ],
   "license": "MIT",
   "author": "noidmejs",
   "type": "module",
-  "bin": { "atomkit-app": "./dist/cli.js" },
-  "files": ["dist"],
+  "bin": {
+    "atomkit-app": "./dist/cli.js"
+  },
+  "files": [
+    "dist"
+  ],
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
-  "exports": { ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" } },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
@@ -20,18 +41,28 @@
   "dependencies": {
     "@noidmejs/atomkit": "^0.5.1",
     "@noidmejs/atomkit-compiler": "^0.2.0",
+    "@noidmejs/atomkit-http": "^0.2.0",
     "react": "^18 || ^19",
     "react-dom": "^18 || ^19"
   },
   "devDependencies": {
-    "typescript": "^5.6.0",
     "@types/node": "^20.0.0",
     "@types/react": "^19.0.0",
-    "@types/react-dom": "^19.0.0"
+    "@types/react-dom": "^19.0.0",
+    "typescript": "^5.6.0"
   },
-  "publishConfig": { "access": "public" },
-  "repository": { "type": "git", "url": "git+https://github.com/noidme-git/atomkit-app.git" },
-  "bugs": { "url": "https://github.com/noidme-git/atomkit-app/issues" },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/noidme-git/atomkit-app.git"
+  },
+  "bugs": {
+    "url": "https://github.com/noidme-git/atomkit-app/issues"
+  },
   "homepage": "https://github.com/noidme-git/atomkit-app#readme",
-  "engines": { "node": ">=18" }
+  "engines": {
+    "node": ">=18"
+  }
 }

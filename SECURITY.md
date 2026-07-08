@@ -33,6 +33,40 @@ atomkit-app is a **local developer tool + build step**. It reads your `.aql` pag
 - **The dev server binds `localhost`** and exposes only your `app/` routes, `public/`
   assets, and an SSE live-reload channel.
 
+## Data binding (server-side resolution)
+
+`api=`-bound nodes are fetched **on the server at build/dev time** and the value is
+baked into static HTML. This is a server-side request surface, so:
+
+- **SSRF** is delegated to `@noidmejs/atomkit-http`'s `createProxy().resolve()` — the
+  host allow-list (`cfg.data.allowHosts`) is enforced on the **initial** request
+  (secret-stripped, param-interpolated) **and** re-validated on every redirect hop;
+  credentials are dropped on a cross-host redirect. On top of that, atomkit-app
+  **denies private/reserved IP-literal hosts** (`localhost`, loopback, `169.254.x`
+  incl. cloud metadata, `10/172.16-31/192.168`, CGNAT, ULA/link-local IPv6) before
+  any fetch (dotted/decimal/hex/octal IPv4 and dotted/hex IPv4-mapped IPv6 are all
+  recognised). **Known gaps:** hostnames are not DNS/IP-pinned, so an allow-listed
+  host whose DNS resolves to a private IP is still reached (a DNS-rebinding TOCTOU
+  window); and the private-IP deny runs on the *initial* URL only — a redirect to a
+  private IP is stopped by the allow-list (fail-closed) rather than the IP deny, so
+  do not allow-list a host you don't control. Only allow-list hosts you control.
+- **Secrets** use a curated `cfg.data.secrets` map referenced as `{{secret.NAME}}` —
+  never the whole `process.env`. Only the field selected by `path` is baked into
+  HTML; the secret itself never is. Drop/failure notes log only the node id + reason,
+  never the resolved URL or raw upstream error.
+- **Governance first**: `stripDocument` runs before resolution, so `pii` / `protected`
+  / consent-gated nodes are masked/removed and **never fetched**. The framework
+  cannot inspect a *response* for PII — any api-bound node renders its resolved value
+  into public HTML, so do not bind an unflagged node to a field that returns PII.
+- **Fail-closed**: unlisted host / private IP / fetch error / empty / non-scalar all
+  drop the binding to the authored fallback.
+- **Supply chain**: the build bakes whatever the upstream returns into deployed HTML —
+  a compromised/hijacked API compromises the static site. Data is a build-time
+  snapshot; rebuild to refresh.
+- **Eject divergence**: the ejected `components/*.tsx` keeps atomkit's client-side
+  fetch (governed only by the browser CSP), unlike the SSRF-guarded, baked static
+  HTML. Keep secret-bearing sources out of the ejected path.
+
 ## Not in scope / limitations
 
 - The dev/start servers are for **local development and simple static hosting** —

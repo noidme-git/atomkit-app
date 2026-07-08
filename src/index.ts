@@ -6,9 +6,10 @@
 export { loadConfig, renderContext, type AtomkitConfig, type GovernanceContext } from './config.js';
 export { collectRoutes, matchRoute, type Route } from './router.js';
 export { renderAqlSource, type RenderedPage } from './render.js';
+export { resolveData, isPrivateHost, type ResolveOptions, type ResolveResult } from './data.js';
 export { pageShell, type ShellOptions } from './html.js';
 export { dev } from './dev.js';
-export { build, type BuildResult } from './build.js';
+export { build, type BuildResult, type BuildOptions } from './build.js';
 export { start } from './start.js';
 export { create } from './create.js';
 export { pkgVersion } from './version.js';

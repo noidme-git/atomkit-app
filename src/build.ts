@@ -14,11 +14,18 @@ import { renderAqlSource } from './render.js';
 import { pageShell } from './html.js';
 import { loadConfig } from './config.js';
 import { compileToReact } from '@noidmejs/atomkit-compiler';
-import { log, ok } from './log.js';
+import { log, ok, warn } from './log.js';
 
 export interface BuildResult {
   routes: { route: string; html: string; component: string }[];
   outDir: string;
+}
+
+export interface BuildOptions {
+  /** Output directory override (default cfg.outDir). */
+  out?: string;
+  /** Override fetch for data resolution (tests / custom runtimes). */
+  fetchImpl?: typeof fetch;
 }
 
 /**
@@ -29,10 +36,10 @@ export interface BuildResult {
  *      the deployable site. `atomkit-app start` serves it.
  * `public/` is copied verbatim; a `routes.json` manifest is written.
  */
-export function build(cwd: string, outOverride?: string): BuildResult {
+export async function build(cwd: string, opts: BuildOptions = {}): Promise<BuildResult> {
   const cfg = loadConfig(cwd);
   const appDir = join(cwd, cfg.appDir);
-  const outDir = join(cwd, outOverride ?? cfg.outDir);
+  const outDir = join(cwd, opts.out ?? cfg.outDir);
   const routes = collectRoutes(appDir);
   if (!routes.length) throw new Error(`No .aql pages found in ${cfg.appDir}/`);
 
@@ -45,12 +52,15 @@ export function build(cwd: string, outOverride?: string): BuildResult {
   for (const r of routes) {
     const src = readFileSync(r.file, 'utf8');
 
-    // (1) own-your-code: standalone React (TSX).
+    // (1) own-your-code: standalone React (TSX). NOTE: compiled from the RAW source, so a
+    //     data-bound node keeps the atomkit runtime's client-side fetch (governed by the
+    //     browser CSP), whereas the static HTML below bakes the value at build time.
     const tsx = compileToReact(src, { name: r.name });
     writeFileSync(join(componentsDir, `${r.name}.tsx`), tsx);
 
-    // (2) deployable static HTML.
-    const page = renderAqlSource(src, cfg);
+    // (2) deployable static HTML (data bindings resolved + baked, SSRF-guarded).
+    const page = await renderAqlSource(src, cfg, { fetchImpl: opts.fetchImpl });
+    for (const n of page.notes) warn(`${r.route} — ${n}`);
     const htmlPath = htmlOut(outDir, r.route);
     mkdirSync(dirname(htmlPath), { recursive: true });
     writeFileSync(
@@ -68,7 +78,7 @@ export function build(cwd: string, outOverride?: string): BuildResult {
   if (existsSync(publicDir)) copyDir(publicDir, outDir);
 
   writeFileSync(join(outDir, 'routes.json'), JSON.stringify(manifest, null, 2));
-  log(`\nOutput → ${outOverride ?? cfg.outDir}/  (static HTML to deploy + components/*.tsx to own)`);
+  log(`\nOutput → ${opts.out ?? cfg.outDir}/  (static HTML to deploy + components/*.tsx to own)`);
   return { routes: manifest, outDir };
 }
 

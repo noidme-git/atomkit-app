@@ -21,7 +21,7 @@ function flag(args: string[], name: string): string | undefined {
   return i >= 0 ? args[i + 1] : undefined;
 }
 
-function main(): void {
+async function main(): Promise<void> {
   const [cmd, ...rest] = process.argv.slice(2);
   const cwd = process.cwd();
   const portFlag = flag(rest, '--port');
@@ -42,7 +42,7 @@ function main(): void {
         dev(cwd, port);
         break;
       case 'build':
-        build(cwd, flag(rest, '--out'));
+        await build(cwd, { out: flag(rest, '--out') });
         break;
       case 'start':
         start(cwd, port);
@@ -67,4 +67,4 @@ function main(): void {
   }
 }
 
-main();
+void main();

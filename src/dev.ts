@@ -62,27 +62,8 @@ export function dev(cwd: string, portOverride?: number): void {
     // Static assets from public/.
     if (servePublic(publicDir, path, res)) return;
 
-    // Re-read config each request so token/title/context edits show live.
-    const cfg = loadConfig(cwd);
-    const routes = collectRoutes(appDir);
-    const route = matchRoute(routes, path);
-    if (!route) return notFound(res, routes);
-
-    try {
-      const src = readFileSync(route.file, 'utf8');
-      const page = renderAqlSource(src, cfg);
-      const html = pageShell({
-        title: page.title,
-        description: page.description,
-        bodyHtml: page.html,
-        cfg,
-        liveReload: true,
-      });
-      res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' });
-      res.end(html);
-    } catch (e) {
-      errorPage(res, route.route, e as Error);
-    }
+    // Route + render (async: pages may resolve data bindings). Any error → errorPage.
+    void handlePage(cwd, appDir, path, res);
   });
 
   server.on('error', (e: NodeJS.ErrnoException) => {
@@ -110,6 +91,32 @@ export function dev(cwd: string, portOverride?: number): void {
     } catch {
       /* ignore */
     }
+  }
+}
+
+async function handlePage(cwd: string, appDir: string, path: string, res: ServerResponse): Promise<void> {
+  let route: Route | undefined;
+  try {
+    // Re-read config each request so token/title/context/data edits show live.
+    const cfg = loadConfig(cwd);
+    const routes = collectRoutes(appDir);
+    route = matchRoute(routes, path);
+    if (!route) return notFound(res, routes);
+
+    const src = readFileSync(route.file, 'utf8');
+    const page = await renderAqlSource(src, cfg);
+    for (const n of page.notes) warn(`${route.route} — ${n}`);
+    const html = pageShell({
+      title: page.title,
+      description: page.description,
+      bodyHtml: page.html,
+      cfg,
+      liveReload: true,
+    });
+    res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' });
+    res.end(html);
+  } catch (e) {
+    errorPage(res, route?.route ?? path, e as Error);
   }
 }
 
