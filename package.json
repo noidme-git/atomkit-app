@@ -1,6 +1,6 @@
 {
   "name": "@noidmejs/atomkit-app",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "The AQL app framework + generator — scaffold, dev-serve (localhost:3300, live reload), and build a UI app written in AQL. Like create-next-app for atomkit: file-based routing over .aql pages, SSR to static HTML, server-side data binding (SSRF-guarded), and compile-to-React (own your code).",
   "keywords": [
     "atomkit",
@@ -39,8 +39,8 @@
     "prepublishOnly": "npm run build && npm test"
   },
   "dependencies": {
-    "@noidmejs/atomkit": "^0.7.0",
-    "@noidmejs/atomkit-compiler": "^0.4.0",
+    "@noidmejs/atomkit": "^0.8.0",
+    "@noidmejs/atomkit-compiler": "^0.5.0",
     "@noidmejs/atomkit-http": "^0.4.0",
     "react": "^18 || ^19",
     "react-dom": "^18 || ^19"

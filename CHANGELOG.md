@@ -2,6 +2,16 @@
 
 All notable changes to `@noidmejs/atomkit-app`. Pre-1.0: minor versions may break.
 
+## 0.5.0
+
+### Security
+- Requires `@noidmejs/atomkit` `^0.8.0`. 0.7.0's `maskNode` leaked unknown node-level
+  fields through `stripDocument`, which is the function this package relies on to
+  enforce governance at egress before a page is served or baked.
+
+### Changed
+- Requires `@noidmejs/atomkit-compiler` `^0.5.0`, bumped in lockstep.
+
 ## 0.4.0
 
 ### BREAKING
