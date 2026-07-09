@@ -2,6 +2,22 @@
 
 All notable changes to `@noidmejs/atomkit-app`. Pre-1.0: minor versions may break.
 
+## 0.4.0
+
+### BREAKING
+- **Node >= 22.** `engines` was `">=18"`, but Node 18 reached end-of-life on
+  2025-04-30 and Node 20 on 2026-04-30 (per `nodejs/Release/schedule.json`).
+  Installing on Node 18/20/21 now fails with `EBADENGINE` under `--engine-strict`.
+  CI tests on 22 (maintenance LTS), 24 (active LTS) and 26 (current).
+
+### Changed
+- `typescript` devDependency → `^7.0.0`; `@types/node` → `^22` (tracks the
+  MINIMUM supported runtime, not the newest — typing against Node 26 while
+  claiming `>=22` would bless APIs that do not exist on the oldest runtime we support).
+- `prepublishOnly` now runs `npm run build && npm test`, not just the build.
+- Requires `@noidmejs/atomkit` `^0.7.0`, `@noidmejs/atomkit-compiler` `^0.4.0`,
+  `@noidmejs/atomkit-http` `^0.4.0`.
+
 ## 0.3.0
 
 ### Security — BREAKING
