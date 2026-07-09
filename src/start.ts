@@ -24,7 +24,12 @@ const MIME: Record<string, string> = {
 };
 
 /** Serve a prebuilt `dist/` (from `build`) with clean-URL resolution. */
-export function start(cwd: string, portOverride?: number): void {
+// See dev.ts: listen(port) binds all interfaces, not localhost. `start` sits in
+// front of a CDN/reverse proxy in production, so it defaults to loopback too and
+// requires an explicit `--host 0.0.0.0` to accept off-box traffic.
+const LOOPBACK = '127.0.0.1';
+
+export function start(cwd: string, portOverride?: number, host: string = LOOPBACK): void {
   const cfg = loadConfig(cwd);
   const port = portOverride ?? cfg.port;
   const outDir = join(cwd, cfg.outDir);
@@ -52,7 +57,7 @@ export function start(cwd: string, portOverride?: number): void {
     }
     throw e;
   });
-  server.listen(port, () => log(`atomkit-app start → http://localhost:${port}  (serving ${cfg.outDir}/)`));
+  server.listen(port, host, () => log(`atomkit-app start → http://${host === LOOPBACK ? 'localhost' : host}:${port}  (serving ${cfg.outDir}/)`));
 }
 
 // Map a URL path to a file inside outDir: try the literal file, then

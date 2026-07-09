@@ -50,10 +50,11 @@ export async function resolveData(
         const reason = preflight(url);
         if (reason) drops.set(key, reason);
         else
-          // No `cache` on purpose: atomkit-http's memo is a module-global keyed only by
-          // source id, so it would ignore an injected fetchImpl/secrets and could bake a
-          // stale value across renders/builds in one process. Each resolveData call fetches
-          // fresh; the `jobs` map already dedupes identical bindings within a single call.
+          // No `cache` on purpose. atomkit-http's cache is now per-instance and keyed on
+          // the fully-resolved request (so it no longer bleeds across proxies or
+          // credentials), but a build must still bake FRESH values: a cache hit would
+          // silently freeze a stale value into the emitted HTML. Each resolveData call
+          // fetches fresh; the `jobs` map already dedupes identical bindings per call.
           jobs.set(key, {
             id: key,
             url,

@@ -27,7 +27,14 @@ const MIME: Record<string, string> = {
 };
 
 /** Start the dev server: file-based routing over `.aql`, SSR, live reload. */
-export function dev(cwd: string, portOverride?: number): void {
+// Bind loopback by default. `server.listen(port)` binds the UNSPECIFIED address
+// (all interfaces), so the dev server — which renders pages using the config's
+// `secrets` and whatever governance context the developer set for testing (e.g.
+// canViewPii:true) — was reachable by anyone on the same LAN or coffee-shop
+// Wi-Fi, contrary to SECURITY.md. `--host` opts in explicitly (device testing).
+const LOOPBACK = '127.0.0.1';
+
+export function dev(cwd: string, portOverride?: number, host: string = LOOPBACK): void {
   const boot = loadConfig(cwd);
   const port = portOverride ?? boot.port;
   const appDir = join(cwd, boot.appDir);
@@ -74,8 +81,9 @@ export function dev(cwd: string, portOverride?: number): void {
     throw e;
   });
 
-  server.listen(port, () => {
-    log(`atomkit-app dev  →  http://localhost:${port}`);
+  server.listen(port, host, () => {
+    log(`atomkit-app dev  →  http://${host === LOOPBACK ? 'localhost' : host}:${port}`);
+    if (host !== LOOPBACK) warn(`bound to ${host} — reachable from your network; pages render with your config context + secrets`);
     log(`  routing ${boot.appDir}/**/*.aql · live-reload on · Ctrl+C to stop`);
   });
 

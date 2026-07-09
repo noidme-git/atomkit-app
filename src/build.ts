@@ -52,10 +52,17 @@ export async function build(cwd: string, opts: BuildOptions = {}): Promise<Build
   for (const r of routes) {
     const src = readFileSync(r.file, 'utf8');
 
-    // (1) own-your-code: standalone React (TSX). NOTE: compiled from the RAW source, so a
-    //     data-bound node keeps the atomkit runtime's client-side fetch (governed by the
-    //     browser CSP), whereas the static HTML below bakes the value at build time.
-    const tsx = compileToReact(src, { name: r.name });
+    // (1) own-your-code: standalone React (TSX). The compiled component is STATIC — it
+    //     does NOT fetch. A data-bound node renders its authored fallback forever, and
+    //     responsive overrides + the `video` atom are dropped. (An earlier note here
+    //     claimed the ejected component "keeps the runtime's client-side fetch"; codegen
+    //     never emitted one.) Every divergence from the runtime is surfaced by onWarn and
+    //     recorded in the emitted file's header. The static HTML below bakes data at
+    //     build time under the allow-list instead.
+    const tsx = compileToReact(src, {
+      name: r.name,
+      onWarn: (w) => warn(`${r.route} — components/${r.name}.tsx: node ${w.node} (${w.type}): ${w.reason}`),
+    });
     writeFileSync(join(componentsDir, `${r.name}.tsx`), tsx);
 
     // (2) deployable static HTML (data bindings resolved + baked, SSRF-guarded).

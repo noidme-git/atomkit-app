@@ -94,10 +94,12 @@ Data is a **build-time snapshot** — rebuild to refresh. The scaffolded `/data`
 is a live demo (binds to `jsonplaceholder.typicode.com`).
 
 > **Note — two data behaviours from one build.** The deployable static HTML bakes
-> the value at build time under the allow-list. The ejected `components/*.tsx`
-> keeps atomkit's *client-side* fetch (governed only by the browser CSP), so a
-> hydrated component fetches live in the browser. Keep secret-bearing sources out
-> of the ejected path.
+> the value at build time under the allow-list. The ejected `components/*.tsx` is
+> **static and does not fetch**: a data-bound node renders its authored fallback
+> forever, and responsive (`sm:`/`md:`/`lg:`) overrides and the `video` atom are
+> dropped. Every such divergence is printed during `build` and recorded as a
+> comment header in the emitted component. Use the atomkit runtime renderer for
+> pages that need live data, responsive overrides, video, or governance.
 
 ## Governance & safety
 
