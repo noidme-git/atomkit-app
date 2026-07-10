@@ -1,4 +1,4 @@
-import { createServer, type ServerResponse } from 'node:http';
+import { createServer, type Server, type ServerResponse } from 'node:http';
 import { readFileSync, existsSync, statSync } from 'node:fs';
 import { join, extname, normalize, sep } from 'node:path';
 import { loadConfig } from './config.js';
@@ -29,7 +29,8 @@ const MIME: Record<string, string> = {
 // requires an explicit `--host 0.0.0.0` to accept off-box traffic.
 const LOOPBACK = '127.0.0.1';
 
-export function start(cwd: string, portOverride?: number, host: string = LOOPBACK): void {
+/** Serve the built site. Returns the server so a caller (or a test) can close it. */
+export function start(cwd: string, portOverride?: number, host: string = LOOPBACK): Server {
   const cfg = loadConfig(cwd);
   const port = portOverride ?? cfg.port;
   const outDir = join(cwd, cfg.outDir);
@@ -58,12 +59,27 @@ export function start(cwd: string, portOverride?: number, host: string = LOOPBAC
     throw e;
   });
   server.listen(port, host, () => log(`atomkit-app start → http://${host === LOOPBACK ? 'localhost' : host}:${port}  (serving ${cfg.outDir}/)`));
+  return server;
 }
 
 // Map a URL path to a file inside outDir: try the literal file, then
 // `<path>/index.html`, then `<path>.html`. Path-traversal guarded.
+// Source artifacts that live in the build output but are NOT part of the deployable
+// site. `components/*.tsx` is code for the developer to own and compile, not an asset
+// to hand a browser. Serving it publishes your source, and — the moment governed
+// per-persona bundles exist — would publish content a viewer is not entitled to.
+const NEVER_SERVE_DIRS = ['components'];
+const NEVER_SERVE_EXTS = ['.ts', '.tsx', '.map'];
+
+function isDeveloperArtifact(rel: string): boolean {
+  const first = rel.split(/[/\\]/)[0] ?? '';
+  if (NEVER_SERVE_DIRS.includes(first)) return true;
+  return NEVER_SERVE_EXTS.includes(extname(rel).toLowerCase());
+}
+
 function resolveFile(outDir: string, path: string): string | undefined {
   const rel = normalize(path).replace(/^([/\\]|\.\.[/\\])+/, '');
+  if (isDeveloperArtifact(rel)) return undefined;
   const base = join(outDir, rel);
   if (base !== outDir && !base.startsWith(outDir + sep)) return undefined;
   const candidates =
